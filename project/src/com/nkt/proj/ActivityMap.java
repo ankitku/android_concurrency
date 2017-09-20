@@ -1,41 +1,26 @@
 package com.nkt.proj;
 
-import java.io.IOException;
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import org.xmlpull.v1.XmlPullParserException;
 
 import soot.Local;
-import soot.PackManager;
-import soot.PatchingChain;
-import soot.PhaseOptions;
 import soot.Scene;
 import soot.SootClass;
 import soot.SootMethod;
 import soot.Unit;
-import soot.ValueBox;
-import soot.jimple.AssignStmt;
-import soot.jimple.ClassConstant;
-import soot.jimple.IntConstant;
 import soot.jimple.JimpleBody;
 import soot.jimple.Stmt;
-import soot.jimple.StringConstant;
-import soot.jimple.infoflow.android.AnalyzeJimpleClass;
 import soot.jimple.infoflow.android.SetupApplication;
-import soot.jimple.infoflow.entryPointCreators.AndroidEntryPointCreator;
-import soot.jimple.infoflow.results.InfoflowResults;
 import soot.jimple.toolkits.callgraph.CallGraph;
 import soot.jimple.toolkits.callgraph.Edge;
 import soot.options.Options;
 import soot.toolkits.scalar.LocalDefs;
+import soot.toolkits.scalar.SimpleLocalUses;
+import soot.toolkits.scalar.UnitValueBoxPair;
 import soot.util.Chain;
 
 //dump the call graph from FlowDroid
@@ -122,7 +107,7 @@ public class ActivityMap {
             
             
             //System.out.println(tgtMethod.getActiveBody().toString());
-            if(tgtMethodDeclaration.contains("startActivity"))
+            if(tgtMethodDeclaration.contains("startActivit"))
             {
             	
             	SootClass cls = srcMethod.getDeclaringClass();
@@ -136,18 +121,34 @@ public class ActivityMap {
 			for(Iterator<Unit> stmts = units.snapshotIterator(); stmts.hasNext();) {
 			     Stmt stmt = (Stmt)stmts.next();
 
-			     if(stmt.containsInvokeExpr() && stmt.getInvokeExpr().getArgCount() == 2)
+			     if(stmt.containsInvokeExpr() && stmt.getInvokeExpr().getMethodRef().name().contains("startActi"))
 			     {
-			    	 String str = stmt.getInvokeExpr().getArg(1).toString();
+			    	 			    	 
+			    	 String str = stmt.getInvokeExpr().getArg(0).toString();
 			    	 
-						if(stmt.getInvokeExpr().getArg(1) instanceof Local)
+						if(stmt.getInvokeExpr().getArg(0) instanceof Local)
 							{
-							System.out.println(body.toString());
+							//System.out.println(body.toString());
+							if(stmt.getInvokeExpr().getArg(0).getType().toString().contains("Intent"))
+							 {	
+								LocalDefs lds = LocalDefs.Factory.newLocalDefs(body);
+								List<Unit> l = lds.getDefsOfAt((Local) stmt.getInvokeExpr().getArg(0),stmt);
+								str = ((Stmt) l.get(l.size() - 1)).toString();
+								
+								List<UnitValueBoxPair> luvbp = new SimpleLocalUses(body,lds).getUsesOf(l.get(l.size() - 1));
+								
+								Stmt st;
+								for(UnitValueBoxPair up: luvbp)
+								{
+									Stmt s = (Stmt) up.getUnit();
+									if(s.containsInvokeExpr() && s.getInvokeExpr().getMethodRef().name().contains("init"))
+									{
+										int n = s.getInvokeExpr().getArgCount();
+										str = s.getInvokeExpr().getArg(n-1).toString();
+									}
+								}
 							
-							System.out.println(stmt.getInvokeExpr().getArg(1).getType() + " type");
-							
-							List<Unit> l = LocalDefs.Factory.newLocalDefs(body).getDefsOfAt((Local) stmt.getInvokeExpr().getArg(1),stmt);
-							str = ((Stmt) l.get(l.size() - 1)).toString();
+							 }
 							}
 
 			           // edgeList.add(cls.toString() + " -----> " + stmt.getInvokeExpr().getArg(1));
