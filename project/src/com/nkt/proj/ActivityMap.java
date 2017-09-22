@@ -2,17 +2,25 @@ package com.nkt.proj;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy;
 
 import org.xmlpull.v1.XmlPullParserException;
 
+import soot.Body;
 import soot.Local;
 import soot.Scene;
 import soot.SootClass;
 import soot.SootMethod;
 import soot.Unit;
+import soot.Value;
+import soot.ValueBox;
+import soot.jimple.IdentityRef;
+import soot.jimple.InvokeExpr;
 import soot.jimple.JimpleBody;
+import soot.jimple.ParameterRef;
 import soot.jimple.Stmt;
 import soot.jimple.infoflow.android.SetupApplication;
 import soot.jimple.toolkits.callgraph.CallGraph;
@@ -85,6 +93,30 @@ public class ActivityMap {
 		
 		printCG(appCallGraph);
 	}
+	
+	
+	public static HashSet<Value> getConstants(Value v, Stmt s, Body b)
+	{
+		HashSet<Value> res = new HashSet();
+		
+		if(v instanceof Local)
+		{
+			List<Local> params = b.getParameterLocals();
+
+		LocalDefs lds = LocalDefs.Factory.newLocalDefs(b);
+		List<Unit> l = lds.getDefsOfAt((Local) v,s);
+		
+		for( int i = 0; i< l.get(l.size() - 1).getUseBoxes().size(); i++)
+			res.addAll(getConstants(l.get(l.size() - 1).getUseBoxes().get(i).getValue(), (Stmt) l.get(l.size() - 1), b));
+		}
+		else
+		{	
+			System.out.println(v.getClass());
+			res.add(v);
+		}
+		
+		return res;
+	}
 
 	public static void printCG(CallGraph cg) {
         Iterator<Edge> edgeItr = cg.iterator();
@@ -126,17 +158,20 @@ public class ActivityMap {
 			    	 			    	 
 			    	 String str = stmt.getInvokeExpr().getArg(0).toString();
 			    	 
-						if(stmt.getInvokeExpr().getArg(0) instanceof Local)
-							{
-							//System.out.println(body.toString());
+
 							if(stmt.getInvokeExpr().getArg(0).getType().toString().contains("Intent"))
 							 {	
+								
+								if(stmt.getInvokeExpr().getArg(0) instanceof Local)
+								{
+																	
 								LocalDefs lds = LocalDefs.Factory.newLocalDefs(body);
 								List<Unit> l = lds.getDefsOfAt((Local) stmt.getInvokeExpr().getArg(0),stmt);
-								str = ((Stmt) l.get(l.size() - 1)).toString();
 								
-								List<UnitValueBoxPair> luvbp = new SimpleLocalUses(body,lds).getUsesOf(l.get(l.size() - 1));
-								
+								List<UnitValueBoxPair> luvbp = new ArrayList<UnitValueBoxPair>();
+								for(int i = 0; i<l.size(); i++)
+									luvbp.addAll(new SimpleLocalUses(body,lds).getUsesOf(l.get(i)));
+									
 								Stmt st;
 								for(UnitValueBoxPair up: luvbp)
 								{
@@ -144,12 +179,27 @@ public class ActivityMap {
 									if(s.containsInvokeExpr() && s.getInvokeExpr().getMethodRef().name().contains("init"))
 									{
 										int n = s.getInvokeExpr().getArgCount();
-										str = s.getInvokeExpr().getArg(n-1).toString();
+										
+										HashSet<Value> res = getConstants(s.getInvokeExpr().getArg(n-1),s,body);
+										
+										Iterator<Value> itr = res.iterator();
+										for(; itr.hasNext();)
+										{
+											Value v = itr.next();
+											
+											if(v instanceof IdentityRef)
+											{
+												System.out.println(v.toString() + "is a parameter");
+											}
+										}
+										
+											str = res.toString();
+										}
 									}
 								}
 							
 							 }
-							}
+							
 
 			           // edgeList.add(cls.toString() + " -----> " + stmt.getInvokeExpr().getArg(1));
 							System.err.println(cls.toString() + " -----> " + str);
@@ -157,7 +207,7 @@ public class ActivityMap {
             
 			}
            }
-        }
+        
         //System.out.println(applicationCallGraph.size());
         for (String edgeStr : edgeList){
         		
@@ -165,5 +215,6 @@ public class ActivityMap {
         }
     }
 
-
+	}
 }
+
